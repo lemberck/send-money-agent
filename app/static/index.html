@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Send Money Agent</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; height: 100vh; display: flex; }
+
+  .container { display: flex; width: 100%; max-width: 1100px; margin: 20px auto; gap: 16px; height: calc(100vh - 40px); }
+
+  .chat-panel { flex: 1; display: flex; flex-direction: column; background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); overflow: hidden; }
+  .chat-header { padding: 16px 20px; background: #1a73e8; color: #fff; font-size: 18px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .chat-header .header-left { display: flex; align-items: center; gap: 12px; }
+  .chat-header .session-id { font-size: 11px; opacity: 0.8; font-weight: 400; }
+  .download-btn { padding: 6px 14px; background: #fff; color: #1a73e8; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+  .download-btn:hover { background: #e8eaed; }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+  .message { max-width: 80%; padding: 10px 14px; border-radius: 12px; line-height: 1.5; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; }
+  .message.user { align-self: flex-end; background: #1a73e8; color: #fff; border-bottom-right-radius: 4px; }
+  .message.agent { align-self: flex-start; background: #e8eaed; color: #202124; border-bottom-left-radius: 4px; }
+  .message .timestamp { display: block; font-size: 10px; opacity: 0.6; margin-top: 4px; }
+  .chat-input { display: flex; padding: 12px 16px; border-top: 1px solid #e0e0e0; gap: 8px; }
+  .chat-input input { flex: 1; padding: 10px 14px; border: 1px solid #dadce0; border-radius: 24px; font-size: 14px; outline: none; }
+  .chat-input input:focus { border-color: #1a73e8; }
+  .chat-input button { padding: 10px 20px; background: #1a73e8; color: #fff; border: none; border-radius: 24px; font-size: 14px; cursor: pointer; font-weight: 500; }
+  .chat-input button:hover { background: #1557b0; }
+  .chat-input button:disabled { background: #94b8e8; cursor: not-allowed; }
+
+  .state-panel { width: 300px; background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); display: flex; flex-direction: column; overflow: hidden; }
+  .state-header { padding: 16px 20px; background: #34a853; color: #fff; font-size: 16px; font-weight: 600; }
+  .state-content { flex: 1; overflow-y: auto; padding: 16px; }
+  .state-field { margin-bottom: 12px; }
+  .state-field label { display: block; font-size: 11px; text-transform: uppercase; color: #5f6368; font-weight: 600; margin-bottom: 2px; letter-spacing: 0.5px; }
+  .state-field .value { font-size: 14px; color: #202124; padding: 4px 0; }
+  .state-field .value.empty { color: #9aa0a6; font-style: italic; }
+  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500; }
+  .status-badge.not_started { background: #e8eaed; color: #5f6368; }
+  .status-badge.collecting { background: #fef7e0; color: #ea8600; }
+  .status-badge.reviewing { background: #e8f0fe; color: #1a73e8; }
+  .status-badge.confirmed { background: #e6f4ea; color: #137333; }
+  .status-badge.cancelled { background: #fce8e6; color: #d93025; }
+  .status-badge.submitted { background: #e0f2f1; color: #00695c; }
+  .new-transfer-btn { margin: 16px; padding: 10px; background: #f1f3f4; border: 1px solid #dadce0; border-radius: 8px; cursor: pointer; font-size: 13px; text-align: center; color: #1a73e8; font-weight: 500; }
+  .new-transfer-btn:hover { background: #e8eaed; }
+
+  .typing-indicator { display: inline-flex; gap: 4px; padding: 4px 0; }
+  .typing-indicator span { width: 6px; height: 6px; background: #9aa0a6; border-radius: 50%; animation: typing 1.2s infinite; }
+  .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing { 0%, 60%, 100% { opacity: 0.3; transform: scale(1); } 30% { opacity: 1; transform: scale(1.2); } }
+
+  @media (max-width: 768px) {
+    .container { flex-direction: column; margin: 8px; height: calc(100vh - 16px); gap: 8px; }
+    .state-panel { width: 100%; max-height: 200px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="chat-panel">
+    <div class="chat-header">
+      <div class="header-left">
+        <span>Send Money Agent</span>
+        <span class="session-id" id="sessionIdDisplay">Connecting...</span>
+      </div>
+      <button class="download-btn" onclick="downloadChat()">Download Chat</button>
+    </div>
+    <div class="chat-messages" id="messages"></div>
+    <div class="chat-input">
+      <input type="text" id="userInput" placeholder="Type a message..." autocomplete="off">
+      <button id="sendBtn" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+  <div class="state-panel">
+    <div class="state-header">Transfer Details</div>
+    <div class="state-content" id="stateContent">
+      <div class="state-field"><label>Status</label><div class="value empty">No transfer started</div></div>
+    </div>
+    <div class="new-transfer-btn" onclick="newSession()">+ New Session</div>
+  </div>
+</div>
+
+<script>
+const API = '';
+const WELCOME = `Welcome to Send Money! I can help you transfer money to 10 countries: Mexico, Philippines, India, Colombia, Guatemala, United Kingdom, Canada, Brazil, Nigeria, and Kenya.
+
+To get started, just tell me where and how much you'd like to send. For example:
+  "Send $200 to Maria in Mexico"
+  "I want to send money to Brazil"`;
+
+let sessionId = null;
+let userId = 'default_user';
+let chatLog = [];
+let countdownInterval = null;
+let pollInterval = null;
+const SUBMISSION_DELAY = 60;
+
+function formatTime(date) {
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+}
+
+function formatTimeFull(date) {
+  return date.toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+}
+
+async function initSession() {
+  try {
+    const res = await fetch(`${API}/sessions?user_id=${userId}`, { method: 'POST' });
+    const data = await res.json();
+    sessionId = data.session_id;
+    chatLog = [];
+    document.getElementById('sessionIdDisplay').textContent = `Session: ${sessionId}`;
+    updateState({});
+    addMessage('agent', WELCOME);
+  } catch (e) {
+    addMessage('agent', 'Failed to connect to the server. Please make sure it is running.');
+  }
+}
+
+function addMessage(type, text) {
+  const now = new Date();
+  const div = document.createElement('div');
+  div.className = `message ${type}`;
+  div.innerHTML = `<span class="msg-text"></span><span class="timestamp">${formatTime(now)}</span>`;
+  div.querySelector('.msg-text').textContent = text;
+  div.dataset.timestamp = now.toISOString();
+  const container = document.getElementById('messages');
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  chatLog.push({ role: type === 'user' ? 'User' : 'Agent', text, timestamp: formatTimeFull(now) });
+  return div;
+}
+
+function downloadChat() {
+  if (chatLog.length === 0) return;
+  let content = `Send Money Agent - Chat Log\nSession: ${sessionId || 'N/A'}\nExported: ${formatTimeFull(new Date())}\n${'='.repeat(60)}\n\n`;
+  for (const msg of chatLog) {
+    content += `[${msg.timestamp}] ${msg.role}:\n${msg.text}\n\n`;
+  }
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `chat_history_${sessionId || 'unknown'}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function stopTimers() {
+  if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+}
+
+function startCountdown(confirmedAt) {
+  stopTimers();
+  const updateBadge = () => {
+    const elapsed = (Date.now() / 1000) - confirmedAt;
+    const remaining = Math.max(0, Math.ceil(SUBMISSION_DELAY - elapsed));
+    const badge = document.querySelector('.status-badge.confirmed');
+    if (remaining <= 0) {
+      if (badge) badge.textContent = 'confirmed (submitting...)';
+      if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+    } else {
+      if (badge) badge.textContent = `confirmed (submitting in ${remaining}s)`;
+    }
+  };
+  updateBadge();
+  countdownInterval = setInterval(updateBadge, 1000);
+  pollInterval = setInterval(async () => {
+    if (!sessionId) return;
+    try {
+      const res = await fetch(`${API}/sessions/${sessionId}/state?user_id=${userId}`);
+      const data = await res.json();
+      if (data.state && data.state.transfer_status !== 'confirmed') {
+        updateState(data.state);
+        stopTimers();
+      }
+    } catch (e) {}
+  }, 3000);
+}
+
+function updateState(state) {
+  const fields = [
+    { key: 'transfer_status', label: 'Status' },
+    { key: 'transfer_country', label: 'Country' },
+    { key: 'transfer_amount', label: 'Amount' },
+    { key: 'transfer_currency', label: 'Currency' },
+    { key: 'transfer_beneficiary_name', label: 'Beneficiary' },
+    { key: 'transfer_beneficiary_account', label: 'Account' },
+    { key: 'transfer_delivery_method', label: 'Delivery Method' },
+    { key: 'transfer_reference', label: 'Reference' },
+  ];
+
+  let html = '';
+  for (const f of fields) {
+    const val = state[f.key];
+    if (f.key === 'transfer_status') {
+      const status = val || 'not_started';
+      let badgeText = status.replace('_', ' ');
+      if (status === 'confirmed' && state.transfer_confirmed_at) {
+        const elapsed = (Date.now() / 1000) - state.transfer_confirmed_at;
+        const remaining = Math.max(0, Math.ceil(SUBMISSION_DELAY - elapsed));
+        badgeText = remaining > 0 ? `confirmed (submitting in ${remaining}s)` : 'confirmed (submitting...)';
+        if (!countdownInterval) startCountdown(state.transfer_confirmed_at);
+      } else {
+        stopTimers();
+      }
+      html += `<div class="state-field"><label>${f.label}</label><div class="value"><span class="status-badge ${status}">${badgeText}</span></div></div>`;
+    } else if (f.key === 'transfer_amount' && val) {
+      const currency = state.transfer_currency || 'USD';
+      html += `<div class="state-field"><label>${f.label}</label><div class="value">$${Number(val).toLocaleString('en-US', {minimumFractionDigits: 2})} ${currency}</div></div>`;
+    } else if (f.key === 'transfer_delivery_method' && val) {
+      const methods = { bank_deposit: { name: 'Bank Deposit', fee: 3.99 }, cash_pickup: { name: 'Cash Pickup', fee: 5.99 }, mobile_wallet: { name: 'Mobile Wallet', fee: 1.99 }, door_to_door: { name: 'Door-to-Door', fee: 9.99 } };
+      const m = methods[val] || { name: val, fee: null };
+      const feeStr = m.fee !== null ? ` <span style="color:#5f6368;font-size:12px">(fee: $${m.fee.toFixed(2)})</span>` : '';
+      html += `<div class="state-field"><label>${f.label}</label><div class="value">${m.name}${feeStr}</div></div>`;
+    } else {
+      const display = val || '--';
+      html += `<div class="state-field"><label>${f.label}</label><div class="value ${val ? '' : 'empty'}">${display}</div></div>`;
+    }
+  }
+  document.getElementById('stateContent').innerHTML = html;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const btn = document.getElementById('sendBtn');
+  const text = input.value.trim();
+  if (!text || !sessionId) return;
+
+  addMessage('user', text);
+  input.value = '';
+  btn.disabled = true;
+
+  // Create agent bubble with typing indicator (replaced on first token)
+  const agentBubble = document.createElement('div');
+  agentBubble.className = 'message agent';
+  agentBubble.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div><span class="msg-text" style="display:none"></span><span class="timestamp"></span>`;
+  const container = document.getElementById('messages');
+  container.appendChild(agentBubble);
+  container.scrollTop = container.scrollHeight;
+  const msgText = agentBubble.querySelector('.msg-text');
+  let firstToken = true;
+
+  try {
+    const res = await fetch(`${API}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, session_id: sessionId, message: text }),
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let currentEvent = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (line.startsWith('event:')) {
+          currentEvent = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
+          try {
+            const data = JSON.parse(line.slice(5).trim());
+            if (currentEvent === 'token') {
+              if (firstToken) {
+                const ind = agentBubble.querySelector('.typing-indicator');
+                if (ind) ind.remove();
+                msgText.style.display = '';
+                firstToken = false;
+              }
+              msgText.textContent += data.text;
+              container.scrollTop = container.scrollHeight;
+            } else if (currentEvent === 'state') {
+              updateState(data.state);
+            }
+          } catch (e) {}
+        }
+      }
+    }
+    // Set agent timestamp after streaming completes
+    const now = new Date();
+    agentBubble.querySelector('.timestamp').textContent = formatTime(now);
+    chatLog.push({ role: 'Agent', text: msgText.textContent, timestamp: formatTimeFull(now) });
+  } catch (e) {
+    agentBubble.remove();
+    addMessage('agent', 'Sorry, something went wrong. Please try again.');
+  } finally {
+    btn.disabled = false;
+    input.focus();
+  }
+}
+
+async function newSession() {
+  stopTimers();
+  document.getElementById('messages').innerHTML = '';
+  await initSession();
+}
+
+document.getElementById('userInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendMessage();
+});
+
+initSession();
+</script>
+</body>
+</html>
