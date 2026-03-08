@@ -8,3 +8,5 @@ send_money_agent/.env
 dist/
 build/
 .adk/
+docs/CASE_SHOWCASE.md
+google-adk-comprehensive-report.md
